@@ -1,6 +1,21 @@
 #include <iostream>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <random>
+#include <string>
+
+int numGeneration(){
+    // 1. Seed with a real hardware entropy source
+    std::random_device rd; 
+    
+    // 2. Initialize a generator (Mersenne Twister is standard)
+    std::mt19937 gen(rd()); 
+
+    // 3. Define a range (e.g., integers between 1 and 100)
+    std::uniform_int_distribution<> distrib(1, 100); 
+
+    return distrib(gen);
+}
 
 int main() {
     // fd (file descriptor) é um array de 2 inteiros usado para armazenar os
@@ -26,10 +41,10 @@ int main() {
         close(fd[1]); 
         
         // 'buffer' é um array de caracteres onde armazenaremos a mensagem lida do pipe.
-        char buffer[100];
+        char buffer[20];
         
-        // Lê até 100 bytes do pipe (fd[0]) e os coloca no 'buffer'.
-        read(fd[0], buffer, 100);
+        // Lê até 20 bytes do pipe (fd[0]) e os coloca no 'buffer'.
+        read(fd[0], buffer, 20);
         
         std::cout << "Child received: " << buffer << std::endl;
         
@@ -40,11 +55,13 @@ int main() {
         // O pai só vai escrever no pipe, então fechamos a extremidade de leitura (fd[0]).
         close(fd[0]); 
         
-        // 'msg' é um ponteiro para a string (mensagem) que será enviada pelo pipe.
-        const char* msg = "Hello from Parent!";
+        // Converte o número para string e ajusta o tamanho para 20 bytes
+        std::string s_msg = std::to_string(numGeneration());
+        s_msg.resize(20, '\0'); // Preenche o resto com null bytes
+        const char* msg = s_msg.c_str();
         
-        // Escreve os 19 bytes da mensagem 'msg' no pipe usando a extremidade de escrita (fd[1]).
-        write(fd[1], msg, 19);
+        // Escreve os 20 bytes da mensagem 'msg' no pipe usando a extremidade de escrita (fd[1]).
+        write(fd[1], msg, 20);
         
         // Fecha a extremidade de escrita após enviar a mensagem.
         close(fd[1]);
