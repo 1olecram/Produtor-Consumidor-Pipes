@@ -12,10 +12,9 @@ bool isPrime(int num)
         return false;
     }
     
-    // Conta os divisores considerando a raiz quadrada -> O(sqrt(n))
+    // Conta os divisores considerando o quadradado do contador -> O(sqrt(n))
     for (int i = 2; i * i <= num; i++)
     {
-        // Se encontrar qualquer divisor, já sabemos que não é primo e retornamos imediatamente
         if (num % i == 0)
             return false;
     }
