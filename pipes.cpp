@@ -3,109 +3,110 @@
 #include <sys/wait.h>
 #include <random>
 #include <vector>
+#include <string> 
 
 bool isPrime(int num)
 {
-    int cnt = 0;
     if (num <= 1)
     {
         return false;
     }
-    else
+    
+    // Conta os divisores considerando a raiz quadrada -> O(sqrt(n))
+    for (int i = 2; i * i <= num; i++)
     {
-        // Conta os divisores n considerando o quadrados desses numeros -> O(sqrt(n))
-        for (int i = 2; i * i <= num; i++)
-        {
-            if (num % i == 0)
-                cnt++;
-        }
-        // Se n e divisivel por mais de 2
-        if (cnt > 0)
-        {
+        // Se encontrar qualquer divisor, já sabemos que não é primo e retornamos imediatamente
+        if (num % i == 0)
             return false;
-        }
-        else
-        {
-            return true;
-        }
     }
+    return true; // Se passar por todo o laco, é primo
 }
 
 std::vector<int> numGeneration(int genNums)
 {
     std::vector<int> numsToRead;
+    
     // Seed com fonte de entropia via hardware
     std::random_device rd;
     // Inicializacao do gerador Mersenne Twister (standard)
     std::mt19937 gen(rd());
-    //∆ ∈ [1, 100]
+    // ∆ ∈ [1, 100]
     std::uniform_int_distribution<> distrib(1, 100);
 
-    //N0 = 1
-    int current = 1;
-    numsToRead.push_back(current);
-
-    for (int i = 1; i < genNums; i++)
-    {
-        // Ni = Ni-1 + ∆
-        current += distrib(gen);
+    // Só geramos os números se a quantidade pedida for maior que 0
+    if (genNums > 0) {
+        // N0 = 1
+        int current = 1;
         numsToRead.push_back(current);
+
+        for (int i = 1; i < genNums; i++)
+        {
+            // Ni = Ni-1 + ∆
+            current += distrib(gen);
+            numsToRead.push_back(current);
+        }
     }
 
-    numsToRead.push_back(0); // Último elemento
+    // Último elemento (condição de parada)
+    numsToRead.push_back(0); 
     return numsToRead;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-    const int BUFFER_SIZE = 1000;
+    // 1. Verificação de segurança na passagem de argumentos
+    if (argc != 2) {
+        std::cerr << "Uso: " << argv[0] << " <quantidade_de_numeros>" << std::endl;
+        return 1;
+    }
+
+    int amount_numbers = std::stoi(argv[1]);
+   
+    // Processos do pipe de escrita e leitura
     int fd[2];
 
     // Cria o pipe. Se retornar -1, houve um erro.
-    if (pipe(fd) == -1)
+    if (pipe(fd) == -1) {
+        std::cerr << "Falha ao criar o pipe" << std::endl;
         return 1;
+    }
 
     pid_t pid = fork();
 
-    if (pid < 0)
+    if (pid < 0) {
+        std::cerr << "Falha no fork" << std::endl;
         return 1;
+    }
 
     if (pid == 0)
     {
-        // Código do Processo Filho
-        close(fd[1]);
+        // Código do Processo Consumidor
+        close(fd[1]); // Fecha a ponta de escrita
 
-        // Agora 'buffer' é um array de inteiros
-        int buffer[BUFFER_SIZE];
-
-        // Lê os bytes do pipe diretamente para o array de inteiros
-        ssize_t read_bytes = read(fd[0], buffer, sizeof(buffer));
-
-        // Descobre quantos números (inteiros) foram lidos
-        int num_elements = read_bytes / sizeof(int);
-
-        std::cout << "Child received: " << std::endl;
-        for (int i = 0; i < num_elements && buffer[i] != 0; i++)
+        // Lê iterativamente um inteiro por vez diretamente do pipe
+        int recebido;
+        while (read(fd[0], &recebido, sizeof(int)) > 0)
         {
-
-            std::cout << buffer[i] << (isPrime(buffer[i]) ? " e primo" : " nao e primo") << std::endl;
+            if (recebido == 0) {
+                break; // Condicao de parada ao receber 0
+            }
+            std::cout << recebido << (isPrime(recebido) ? " e primo" : " nao e primo") << std::endl;
         }
 
         close(fd[0]);
     }
     else
     {
-        // Código do Processo Pai
-        close(fd[0]);
+        // Código do Processo Produtor (Pai)
+        close(fd[0]); // Fecha a ponta de leitura
 
-        // Gera os números para caber no buffer (considerando o 0 no final)
-        std::vector<int> nums = numGeneration(BUFFER_SIZE - 1);
+        std::vector<int> nums = numGeneration(amount_numbers);
 
-        // Escreve os inteiros diretamente no pipe
+        // Escreve todos os inteiros diretamente no pipe
         write(fd[1], nums.data(), nums.size() * sizeof(int));
 
         close(fd[1]);
-        wait(NULL);
+        wait(NULL); // Espera o processo filho finalizar
     }
     return 0;
 }
